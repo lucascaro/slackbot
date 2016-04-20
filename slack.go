@@ -68,7 +68,6 @@ func slackStart(token string) (wsurl, id string, err error) {
 		return
 	}
 	var respObj responseRtmStart
-	fmt.Println(string(body))
 	err = json.Unmarshal(body, &respObj)
 	if err != nil {
 		return
@@ -93,8 +92,10 @@ type IncommingMessage struct {
 	ID        uint64          `json:"id"`
 	Type      string          `json:"type"`
 	Channel   json.RawMessage `json:"channel"`
+	Text      string          `json:"text"`
+	User      json.RawMessage `json:"user"`
 	ChannelID string
-	Text      string `json:"text"`
+	UserID    string
 }
 
 // Message is the default slack message struct.
@@ -103,10 +104,16 @@ type Message struct {
 	Type    string `json:"type"`
 	Channel string `json:"channel"`
 	Text    string `json:"text"`
+	User    string `json:"user"`
 }
 
 // ChannelObject represents the channel when it's not a string.
 type ChannelObject struct {
+	ID string `json:"id"`
+}
+
+// UserObject represents a user for messages where it's not a string.
+type UserObject struct {
 	ID string `json:"id"`
 }
 
@@ -127,11 +134,26 @@ func getMessage(ws *websocket.Conn) (m Message, err error) {
 			}
 		}
 	}
+	if err == nil && len(im.User) > 0 {
+		// Try a string User
+		var uid string
+		err = json.Unmarshal(im.User, &uid)
+		if err == nil {
+			im.UserID = uid
+		} else {
+			var uobj UserObject
+			err = json.Unmarshal(im.User, &uobj)
+			if err == nil {
+				im.UserID = uobj.ID
+			}
+		}
+	}
 	m = Message{
 		ID:      im.ID,
 		Type:    im.Type,
 		Channel: im.ChannelID,
 		Text:    im.Text,
+		User:    im.UserID,
 	}
 	return
 }

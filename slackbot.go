@@ -14,33 +14,47 @@ type SlackBot struct {
 	Name         string
 	token        string
 	connectionID string
-	hearMap      map[string]Action
-	respondMap   map[string]Action
+	HearMap      map[string]Action
+	RespondMap   map[string]Action
 	webSocket    *websocket.Conn
 }
 
+// ActionHandler is a callback for an action
+type ActionHandler func(*SlackBot, Message)
+
 // Action is the type for slackbot actions
-type Action func(*SlackBot, Message)
+type Action struct {
+	Handler     ActionHandler
+	Pattern     string
+	Description string
+}
 
 // New creates a new SlackBot with the given settings.
 func New(name, token string) *SlackBot {
 	return &SlackBot{
 		Name:       name,
 		token:      token,
-		hearMap:    make(map[string]Action),
-		respondMap: make(map[string]Action),
+		HearMap:    make(map[string]Action),
+		RespondMap: make(map[string]Action),
 	}
 }
 
 // Hear will call the action everytime the robot sees a message.
-func (bot *SlackBot) Hear(pattern string, action Action) {
-	bot.hearMap[pattern] = action
-	fmt.Println(bot.hearMap)
+func (bot *SlackBot) Hear(pattern string, handler ActionHandler, description string) {
+	bot.HearMap[pattern] = Action{
+		Handler:     handler,
+		Pattern:     pattern,
+		Description: description,
+	}
 }
 
 // Respond will call the action everytime the robot sees a mention.
-func (bot *SlackBot) Respond(pattern string, action Action) {
-	bot.respondMap[pattern] = action
+func (bot *SlackBot) Respond(pattern string, handler ActionHandler, description string) {
+	bot.RespondMap[pattern] = Action{
+		Handler:     handler,
+		Pattern:     pattern,
+		Description: description,
+	}
 }
 
 // Say will send the specified text.
@@ -64,21 +78,20 @@ func (bot *SlackBot) Connect() {
 			log.Fatal(err)
 		}
 
-		log.Println(m)
 		// see if we're mentioned
 		if m.Type == "message" {
-			for pattern, action := range bot.hearMap {
+			for pattern, action := range bot.HearMap {
 				if matched, _ := regexp.MatchString(pattern, m.Text); matched {
-					action(bot, m)
+					action.Handler(bot, m)
 				}
 			}
 			if strings.HasPrefix(m.Text, "<@"+bot.connectionID+">") {
 				hadMatch := false
-				for pattern, action := range bot.respondMap {
+				for pattern, action := range bot.RespondMap {
 					//  TODO: remove the mention from the message?
 					if matched, _ := regexp.MatchString(pattern, m.Text); matched {
 						hadMatch = true
-						action(bot, m)
+						action.Handler(bot, m)
 					}
 				}
 				if !hadMatch {
