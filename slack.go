@@ -1,28 +1,3 @@
-/*
-
-mybot - Illustrative Slack bot in Go
-
-Copyright (c) 2015 RapidLoop
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-*/
-
 package slackbot
 
 import (
@@ -33,12 +8,15 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 )
 
-// These two structures represent the response of the Slack API rtm.start.
-// Only some fields are included. The rest are ignored by json.Unmarshal.
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
 
+// response of the Slack API rtm.start.
 type responseRtmStart struct {
 	Ok    bool         `json:"ok"`
 	Error string       `json:"error"`
@@ -46,12 +24,12 @@ type responseRtmStart struct {
 	Self  responseSelf `json:"self"`
 }
 
+// Self representation from rtm.start.
 type responseSelf struct {
 	ID string `json:"id"`
 }
 
-// slackStart does a rtm.start, and returns a websocket URL and user ID. The
-// websocket URL can be used to initiate an RTM session.
+// slackStart uses the slack api to get a web socket url and a user id.
 func slackStart(token string) (wsurl, id string, err error) {
 	url := fmt.Sprintf("https://slack.com/api/rtm.start?token=%s", token)
 	resp, err := http.Get(url)
@@ -82,10 +60,6 @@ func slackStart(token string) (wsurl, id string, err error) {
 	id = respObj.Self.ID
 	return
 }
-
-// These are the messages read off and written into the websocket. Since this
-// struct serves as both read and write, we include the "Id" field which is
-// required only for writing.
 
 // IncommingMessage is a generic message from slack
 type IncommingMessage struct {
@@ -119,7 +93,8 @@ type UserObject struct {
 
 func getMessage(ws *websocket.Conn) (m Message, err error) {
 	var im IncommingMessage
-	err = websocket.JSON.Receive(ws, &im)
+	err = ws.ReadJSON(&im)
+	fmt.Println("MESSAGE:", im)
 	if err == nil && len(im.Channel) > 0 {
 		// Try a string Channel
 		var cid string
@@ -160,20 +135,20 @@ func getMessage(ws *websocket.Conn) (m Message, err error) {
 
 var counter uint64
 
+// Send a message through the web socket.
 func postMessage(ws *websocket.Conn, m Message) error {
 	m.ID = atomic.AddUint64(&counter, 1)
-	return websocket.JSON.Send(ws, m)
+	return ws.WriteJSON(m)
 }
 
-// Starts a websocket-based Real Time API session and return the websocket
-// and the ID of the (bot-)user whom the token belongs to.
+// Starts a websocket-based Real Time API session and return the websocket.
 func slackConnect(token string) (*websocket.Conn, string) {
 	wsurl, id, err := slackStart(token)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	ws, err := websocket.Dial(wsurl, "", "https://api.slack.com/")
+	ws, _, err := websocket.DefaultDialer.Dial(wsurl, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

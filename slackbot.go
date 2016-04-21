@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 )
 
 // SlackBot is the main type for creating robots.
