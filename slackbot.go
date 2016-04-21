@@ -24,9 +24,10 @@ type ActionHandler func(*SlackBot, Message)
 
 // Action is the type for slackbot actions
 type Action struct {
-	Handler     ActionHandler
-	Pattern     string
-	Description string
+	Handler         ActionHandler
+	Pattern         string
+	FriendlyPattern string
+	Description     string
 }
 
 // New creates a new SlackBot with the given settings.
@@ -39,22 +40,34 @@ func New(name, token string) *SlackBot {
 	}
 }
 
+// HearAction will call the action everytime the robot sees a message.
+func (bot *SlackBot) HearAction(action Action) {
+	bot.HearMap[action.Pattern] = action
+}
+
+// RespondAction will call the action everytime the robot sees a message.
+func (bot *SlackBot) RespondAction(action Action) {
+	bot.RespondMap[action.Pattern] = action
+}
+
 // Hear will call the action everytime the robot sees a message.
-func (bot *SlackBot) Hear(pattern string, handler ActionHandler, description string) {
-	bot.HearMap[pattern] = Action{
-		Handler:     handler,
-		Pattern:     pattern,
-		Description: description,
-	}
+func (bot *SlackBot) Hear(pattern string, handler ActionHandler, friendlyPattern, description string) {
+	bot.HearAction(Action{
+		Handler:         handler,
+		Pattern:         pattern,
+		FriendlyPattern: friendlyPattern,
+		Description:     description,
+	})
 }
 
 // Respond will call the action everytime the robot sees a mention.
-func (bot *SlackBot) Respond(pattern string, handler ActionHandler, description string) {
-	bot.RespondMap[pattern] = Action{
-		Handler:     handler,
-		Pattern:     pattern,
-		Description: description,
-	}
+func (bot *SlackBot) Respond(pattern string, handler ActionHandler, friendlyPattern, description string) {
+	bot.RespondAction(Action{
+		Handler:         handler,
+		Pattern:         pattern,
+		FriendlyPattern: friendlyPattern,
+		Description:     description,
+	})
 }
 
 // Say will send the specified text.
