@@ -5,6 +5,7 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -17,6 +18,7 @@ type SlackBot struct {
 	HearMap      map[string]Action
 	RespondMap   map[string]Action
 	webSocket    *websocket.Conn
+	IsMuted      bool
 }
 
 // ActionHandler is a callback for an action
@@ -37,6 +39,7 @@ func New(name, token string) *SlackBot {
 		token:      token,
 		HearMap:    make(map[string]Action),
 		RespondMap: make(map[string]Action),
+		IsMuted:    false,
 	}
 }
 
@@ -72,10 +75,23 @@ func (bot *SlackBot) Respond(pattern string, handler ActionHandler, friendlyPatt
 
 // Say will send the specified text.
 func (bot *SlackBot) Say(m Message, message string) {
-	go func(m Message) {
-		m.Text = message
-		postMessage(bot.webSocket, m)
-	}(m)
+	if !bot.IsMuted {
+		go func(m Message) {
+			m.Text = message
+			postMessage(bot.webSocket, m)
+		}(m)
+	}
+}
+
+// Mute will mute the bot for s seconds.
+func (bot *SlackBot) Mute(s int) {
+	go func(bot *SlackBot) {
+		fmt.Printf("Muting for %d seconds\n", s)
+		bot.IsMuted = true
+		time.Sleep(time.Second * time.Duration(s))
+		bot.IsMuted = false
+		fmt.Println("Unmuting")
+	}(bot)
 }
 
 // Connect will connect the robot and start the main loop.
