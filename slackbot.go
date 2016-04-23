@@ -22,7 +22,7 @@ type SlackBot struct {
 }
 
 // ActionHandler is a callback for an action
-type ActionHandler func(*SlackBot, Message)
+type ActionHandler func(*SlackBot, *ActionContext)
 
 // Action is the type for slackbot actions
 type Action struct {
@@ -30,6 +30,14 @@ type Action struct {
 	Pattern         string
 	FriendlyPattern string
 	Description     string
+	regexp          *regexp.Regexp
+}
+
+// ActionContext with information will be passed to all actions
+type ActionContext struct {
+	Action  Action
+	Matches [][]string
+	Message Message
 }
 
 // New creates a new SlackBot with the given settings.
@@ -43,13 +51,25 @@ func New(name, token string) *SlackBot {
 	}
 }
 
+// Compile regular expression in actions
+func (a *Action) Compile() {
+	re, err := regexp.Compile(a.Pattern)
+	if err != nil {
+		log.Println(err)
+		panic(fmt.Sprintf("ERROR compiling regexp: %s\n\t%v", a.Pattern, err))
+	}
+	a.regexp = re
+}
+
 // HearAction will call the action everytime the robot sees a message.
 func (bot *SlackBot) HearAction(action Action) {
+	action.Compile()
 	bot.HearMap[action.Pattern] = action
 }
 
 // RespondAction will call the action everytime the robot sees a message.
 func (bot *SlackBot) RespondAction(action Action) {
+	action.Compile()
 	bot.RespondMap[action.Pattern] = action
 }
 
@@ -76,10 +96,11 @@ func (bot *SlackBot) Respond(pattern string, handler ActionHandler, friendlyPatt
 // Say will send the specified text.
 func (bot *SlackBot) Say(m Message, message string) {
 	if !bot.IsMuted {
-		go func(m Message) {
-			m.Text = message
-			postMessage(bot.webSocket, m)
-		}(m)
+		// TODO: gorilla websockets don't support concurrent writes...
+		// go func(m Message) {
+		m.Text = message
+		postMessage(bot.webSocket, m)
+		// }(m)
 	}
 }
 
@@ -111,7 +132,7 @@ func (bot *SlackBot) Connect() {
 		if m.Type == "message" {
 			for pattern, action := range bot.HearMap {
 				if matched, _ := regexp.MatchString(pattern, m.Text); matched {
-					action.Handler(bot, m)
+					bot.handleAction(action, m)
 				}
 			}
 			if strings.HasPrefix(m.Text, "<@"+bot.connectionID+">") {
@@ -120,13 +141,23 @@ func (bot *SlackBot) Connect() {
 					//  TODO: remove the mention from the message?
 					if matched, _ := regexp.MatchString(pattern, m.Text); matched {
 						hadMatch = true
-						action.Handler(bot, m)
+						bot.handleAction(action, m)
 					}
 				}
 				if !hadMatch {
-					bot.Say(m, "Huh?")
+					bot.Say(m, "uhhhmmm...")
 				}
 			}
 		}
 	}
+}
+
+func (bot *SlackBot) handleAction(action Action, m Message) {
+	matches := action.regexp.FindAllStringSubmatch(m.Text, -1)
+	context := ActionContext{
+		Action:  action,
+		Matches: matches,
+		Message: m,
+	}
+	action.Handler(bot, &context)
 }
