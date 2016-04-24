@@ -1,8 +1,11 @@
 package slackbot
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -93,13 +96,43 @@ func (bot *SlackBot) Respond(pattern string, handler ActionHandler, friendlyPatt
 	})
 }
 
+// PostMessagePayload for outgoing messages
+type PostMessagePayload struct {
+	Token       string       `json:"token"`
+	Type        string       `json:"type"`
+	Channel     string       `json:"channel"`
+	Text        string       `json:"text"`
+	User        string       `json:"user"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+}
+
+// PostMessage will send the specified text.
+func (bot *SlackBot) PostMessage(m Message) error {
+	// Say will send the specified text.
+	// Use web api to post message so we can support attachments.
+	apiURL := "https://slack.com/api/chat.postMessage"
+	strAttachments, _ := json.Marshal(m.Attachments)
+
+	resp, err := http.PostForm(apiURL, url.Values{
+		"token":       {bot.token},
+		"parse":       {"full"},
+		"channel":     {m.Channel},
+		"text":        {m.Text},
+		"attachments": {string(strAttachments)},
+	})
+	defer resp.Body.Close()
+	// body, err := ioutil.ReadAll(resp.Body)
+	return err
+}
+
 // Say will send the specified text.
 func (bot *SlackBot) Say(m Message, message string) {
 	if !bot.IsMuted {
 		// TODO: gorilla websockets don't support concurrent writes...
 		// go func(m Message) {
 		m.Text = message
-		postMessage(bot.webSocket, m)
+		// postMessage(bot.webSocket, m)
+		bot.PostMessage(m)
 		// }(m)
 	}
 }
@@ -129,7 +162,7 @@ func (bot *SlackBot) Connect() {
 		}
 
 		// see if we're mentioned
-		if m.Type == "message" {
+		if m.Type == "message" && m.User != bot.connectionID {
 			for pattern, action := range bot.HearMap {
 				if matched, _ := regexp.MatchString(pattern, m.Text); matched {
 					bot.handleAction(action, m)

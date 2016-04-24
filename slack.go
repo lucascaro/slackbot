@@ -74,11 +74,34 @@ type IncommingMessage struct {
 
 // Message is the default slack message struct.
 type Message struct {
-	ID      uint64 `json:"id"`
-	Type    string `json:"type"`
-	Channel string `json:"channel"`
-	Text    string `json:"text"`
-	User    string `json:"user"`
+	ID          uint64       `json:"id"`
+	Type        string       `json:"type"`
+	Channel     string       `json:"channel"`
+	Text        string       `json:"text"`
+	User        string       `json:"user"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+}
+
+// Attachment for outgoing messages
+type Attachment struct {
+	Fallback   *string `json:"fallback,omitempty"`
+	Color      *string `json:"color,omitempty"`
+	Text       *string `json:"text,omitempty"`
+	PreText    *string `json:"pretext,omitempty"`
+	AuthorName *string `json:"author_name,omitempty"`
+	AuthorLink *string `json:"author_link,omitempty"`
+	AuthorIcon *string `json:"author_icon,omitempty"`
+	Title      *string `json:"title,omitempty"`
+	TitleLink  *string `json:"title_link,omitempty"`
+	// "fields": [
+	//     {
+	//         "title": "Priority",
+	//         "value": "High",
+	//         "short": false
+	//     }
+	// ],
+	// "image_url": "http://my-website.com/path/to/image.jpg",
+	// "thumb_url": "http://example.com/path/to/thumb.png"
 }
 
 // ChannelObject represents the channel when it's not a string.
